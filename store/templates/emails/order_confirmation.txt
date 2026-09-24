@@ -1,0 +1,14 @@
+Thank You For Your Order!
+
+Thank you so much for your order. We can't wait for you to receive {{ receive_phrase }}.
+
+If you have any questions or concerns in the meantime, please reach out to us and we'd be happy to help. Thanks again for your business. It is truly appreciated.
+
+[Marigo Team]
+
+Order #{{ order.id }}
+{% for item in items %}- {{ item.name }} x {{ item.quantity }} = ${{ item.line_total }}
+{% endfor %}
+Total: ${{ order.total_amount|floatformat:0 }}
+
+{{ footer_email }}

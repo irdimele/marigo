@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thank You For Your Order!</title>
+</head>
+<body style="margin:0; padding:0; background-color:#ffffff; font-family:Arial, Helvetica, sans-serif; color:#111111;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#ffffff; padding:48px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%;">
+
+          <!-- Logo / wordmark -->
+          <tr>
+            <td align="center" style="padding:24px 0 32px 0;">
+              <div style="font-family:Arial, Helvetica, sans-serif; font-size:32px; font-weight:800; letter-spacing:2px; line-height:1;">
+                <span style="color:#E7004C;">MAR</span><span style="color:#F5A623;">I</span><span style="color:#61B0BC;">G</span><span style="color:#F5A623;">O</span><span style="color:#E7004C; font-size:14px; vertical-align:super;">&reg;</span>
+              </div>
+              <div style="font-family:Arial, Helvetica, sans-serif; font-size:12px; font-weight:700; color:#111111; letter-spacing:1px; margin-top:4px;">
+                souvenirs and gifts
+              </div>
+            </td>
+          </tr>
+
+          <!-- Gray hero box: heart + heading -->
+          <tr>
+            <td style="background-color:#f3f4f6; padding:28px 24px 32px 24px; text-align:center;">
+              <div style="font-size:44px; line-height:1; color:#E7004C; margin-bottom:14px;">&hearts;</div>
+              <h1 style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:24px; font-weight:700; color:#111111;">
+                Thank You For Your Order!
+              </h1>
+            </td>
+          </tr>
+
+          <!-- Body copy -->
+          <tr>
+            <td style="padding:36px 24px 8px 24px;">
+              <p style="margin:0 0 20px 0; font-size:14px; line-height:1.6; color:#333333;">
+                Thank you so much for your order. We can&rsquo;t wait for you to receive {{ receive_phrase }}.
+              </p>
+              <p style="margin:0 0 24px 0; font-size:14px; line-height:1.6; color:#333333;">
+                If you have any questions or concerns in the meantime, please reach out to us and we&rsquo;d be happy to help. Thanks again for your business. It is truly appreciated.
+              </p>
+              <p style="margin:0; font-size:14px; line-height:1.6; color:#333333;">
+                [Marigo Team]
+              </p>
+            </td>
+          </tr>
+
+          <!-- Order summary (dynamic) -->
+          <tr>
+            <td style="padding:16px 24px 8px 24px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e5e7eb; padding-top:16px;">
+                <tr>
+                  <td style="font-size:12px; font-weight:700; color:#6b7280; text-transform:uppercase; padding-bottom:10px;">
+                    Order #{{ order.id }} &mdash; {{ items|length }} item{{ items|length|pluralize }}
+                  </td>
+                </tr>
+                {% for item in items %}
+                <tr>
+                  <td style="font-size:13px; color:#333333; padding:4px 0;">
+                    {{ item.name }} &times; {{ item.quantity }}
+                  </td>
+                  <td align="right" style="font-size:13px; color:#333333; padding:4px 0;">
+                    ${{ item.line_total }}
+                  </td>
+                </tr>
+                {% endfor %}
+                <tr>
+                  <td style="font-size:13px; font-weight:700; color:#111111; padding:10px 0 0 0; border-top:1px solid #e5e7eb;">
+                    TOTAL
+                  </td>
+                  <td align="right" style="font-size:13px; font-weight:700; color:#E7004C; padding:10px 0 0 0; border-top:1px solid #e5e7eb;">
+                    ${{ order.total_amount|floatformat:0 }}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer bar -->
+          <tr>
+            <td style="padding:24px 0 8px 0;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="background-color:#f3f4f6; padding:14px 16px; font-size:13px; color:#333333;">
+                    {{ footer_email }}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
