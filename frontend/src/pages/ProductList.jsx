@@ -85,16 +85,16 @@ export default function ProductList() {
 
   // Fetch products whenever the URL filters change (?sort=, ?category=, ?order=, ?search=).
   useEffect(() => {
-    let cancelled = false;
-    getProducts(apiParamsFromSearch(new URLSearchParams(location.search)))
+    const controller = new AbortController();
+    getProducts(apiParamsFromSearch(new URLSearchParams(location.search)), controller.signal)
       .then((data) => {
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         setProducts(data.results || []);
         setError("");
         setLoading(false);
       })
       .catch((err) => {
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         setError(
           err?.response?.data
             ? `Failed to load products: ${JSON.stringify(err.response.data)}`
@@ -102,14 +102,10 @@ export default function ProductList() {
         );
         setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
+    return () => controller.abort();
   }, [location.search]);
 
   function selectTab(tab) {
-    setLoading(true);
-    setError("");
     const next = new URLSearchParams();
     const order = searchParams.get("order");
     // Keep an active search query when switching category/sort tabs.
@@ -125,16 +121,25 @@ export default function ProductList() {
     } else if (order) {
       next.set("order", order);
     }
+    // Same tab clicked again → identical URL → the fetch effect won't re-run,
+    // so don't flip to loading (it would never clear).
+    if (next.toString() !== searchParams.toString()) {
+      setLoading(true);
+      setError("");
+    }
     setSearchParams(next);
   }
 
   function changeOrder(order) {
-    setLoading(true);
     const next = new URLSearchParams(searchParams);
     if (order === "price_desc" && !searchParams.get("sort") && !searchParams.get("category")) {
       next.delete("order");
     } else {
       next.set("order", order);
+    }
+    // Identical URL → the fetch effect won't re-run; don't strand loading=true.
+    if (next.toString() !== searchParams.toString()) {
+      setLoading(true);
     }
     setSearchParams(next);
   }

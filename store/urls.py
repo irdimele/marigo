@@ -4,16 +4,19 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from .serializers import EmailTokenObtainPairSerializer
 from .views import (
-    AddressViewSet,
     CartAddView,
     CartDetailView,
     CartItemUpdateDeleteView,
     CategoryViewSet,
     CheckoutView,
     ContactCreateView,
+    DashboardMessageBulkDeleteView,
+    DashboardMessageDetailView,
     DashboardMessagesView,
+    DashboardOrderDetailView,
     DashboardOrdersView,
     DashboardProductViewSet,
+    DashboardRevenueView,
     MeView,
     OrderViewSet,
     ProductViewSet,
@@ -30,7 +33,6 @@ router = DefaultRouter()
 router.register(r"categories", CategoryViewSet, basename="category")
 router.register(r"products", ProductViewSet, basename="product")
 router.register(r"orders", OrderViewSet, basename="order")
-router.register(r"addresses", AddressViewSet, basename="address")
 router.register(
     r"dashboard/products",
     DashboardProductViewSet,
@@ -62,10 +64,30 @@ urlpatterns = [
     # Dashboard (staff only)
     path("dashboard/orders/", DashboardOrdersView.as_view(), name="dashboard-orders"),
     path(
+        "dashboard/orders/<int:pk>/",
+        DashboardOrderDetailView.as_view(),
+        name="dashboard-order-detail",
+    ),
+    path(
+        "dashboard/revenue/",
+        DashboardRevenueView.as_view(),
+        name="dashboard-revenue",
+    ),
+    path(
         "dashboard/messages/",
         DashboardMessagesView.as_view(),
         name="dashboard-messages",
     ),
-    # Router (categories, products, orders, addresses)
+    path(
+        "dashboard/messages/bulk-delete/",
+        DashboardMessageBulkDeleteView.as_view(),
+        name="dashboard-messages-bulk-delete",
+    ),
+    path(
+        "dashboard/messages/<int:pk>/",
+        DashboardMessageDetailView.as_view(),
+        name="dashboard-message-detail",
+    ),
+    # Router (categories, products, orders)
     path("", include(router.urls)),
 ]

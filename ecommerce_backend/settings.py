@@ -104,6 +104,11 @@ else:
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
+# Threaded tests (checkout race) need a file-based test database —
+# two threads cannot write the default in-memory SQLite at once.
+if os.getenv("DJANGO_TEST_DB_NAME"):
+    DATABASES["default"].setdefault("TEST", {})
+    DATABASES["default"]["TEST"]["NAME"] = os.getenv("DJANGO_TEST_DB_NAME")
 
 
 # Password validation
@@ -140,17 +145,19 @@ USE_TZ = True
 STATIC_URL = "static/"
 
 # Media files (product image uploads)
+# MEDIA_ROOT is env-overridable so test runs can use a throwaway folder.
 
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = Path(os.getenv("MEDIA_ROOT", str(BASE_DIR / "media")))
 
 # Default primary key field type
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # CORS — allow separate React dev servers (CRA :3000, Vite :5173)
+# Overridable via env: CORS_ALLOWED_ORIGINS=http://localhost:5174,...
 
-CORS_ALLOWED_ORIGINS = [
+CORS_ALLOWED_ORIGINS = _get_list_env("CORS_ALLOWED_ORIGINS") or [
     "http://localhost:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",

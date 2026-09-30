@@ -4,11 +4,7 @@ import client from "./client";
 let meCache = null;
 let mePromise = null;
 
-export function getCachedMe() {
-  return meCache;
-}
-
-export function clearMe() {
+function clearMe() {
   meCache = null;
   mePromise = null;
 }

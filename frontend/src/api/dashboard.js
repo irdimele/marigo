@@ -10,9 +10,29 @@ export async function getDashboardOrders() {
   return normalizeList(res.data);
 }
 
+export async function setDashboardOrderDone(id, isDone) {
+  const res = await client.patch(`/dashboard/orders/${id}/`, { is_done: isDone });
+  return res.data;
+}
+
+export async function getDashboardRevenue(start, end) {
+  const res = await client.get("/dashboard/revenue/", { params: { start, end } });
+  return res.data;
+}
+
 export async function getDashboardMessages() {
   const res = await client.get("/dashboard/messages/");
   return normalizeList(res.data);
+}
+
+export async function deleteDashboardMessage(id) {
+  const res = await client.delete(`/dashboard/messages/${id}/`);
+  return res.data;
+}
+
+export async function bulkDeleteDashboardMessages(ids) {
+  const res = await client.post("/dashboard/messages/bulk-delete/", { ids });
+  return res.data;
 }
 
 export async function getDashboardProducts() {

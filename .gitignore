@@ -31,3 +31,9 @@ frontend/dist/
 
 # QA / temp
 *.local
+
+# E2E test artifacts (throwaway database + reports)
+test_e2e.sqlite3
+test_*.sqlite3
+test-results/
+playwright-report/

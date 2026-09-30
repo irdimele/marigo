@@ -1,18 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { useShop } from "../context/ShopContext";
+import { getProduct } from "../api/products";
+import {
+  COLOR_OPTIONS as colors,
+  defaultColorIndex,
+  imagesForColor,
+} from "../utils/productColors";
 
 const sizes = ["XS", "S", "M", "L", "XL"];
-const colors = [
-  { name: "White", value: "#FFFFFF" },
-  { name: "Black", value: "#000000" },
-];
-
-/** Explicit White-first default; fall back to first available if White is absent. */
-function defaultColorIndex(list) {
-  const white = list.findIndex((c) => c.name.toLowerCase() === "white");
-  return white >= 0 ? white : 0;
-}
 
 export default function QuickViewModal({ product, onClose }) {
   // Parent mounts with key={product.id} so state re-inits per product (no setState-in-effect).
@@ -21,6 +17,24 @@ export default function QuickViewModal({ product, onClose }) {
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
   const { addToCart } = useShop();
+
+  // The list payload carries no images — fetch the detail so color swatches
+  // can switch the main photo (falls back to primary_image on failure).
+  const [images, setImages] = useState(null);
+  useEffect(() => {
+    if (!product?.slug) return undefined;
+    let cancelled = false;
+    getProduct(product.slug)
+      .then((data) => {
+        if (!cancelled) setImages(data.images || []);
+      })
+      .catch(() => {
+        if (!cancelled) setImages([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [product?.slug]);
 
   // Category-driven: list payload carries has_*_options (flat) or nested category.
   const colorEnabled = Boolean(
@@ -34,6 +48,11 @@ export default function QuickViewModal({ product, onClose }) {
 
   const stock = Number(product.stock ?? 0);
   const outOfStock = stock < 1;
+  // Color-linked main photo — same imagesForColor() logic as Product Detail.
+  const selectedColorName = colors[selectedColor]?.name || "";
+  const displayImage =
+    imagesForColor(images || [], colorEnabled, selectedColorName)[0]?.image ||
+    product.primary_image;
 
   async function handleAddToCart() {
     if (outOfStock) return;
@@ -78,9 +97,9 @@ export default function QuickViewModal({ product, onClose }) {
 
         {/* Image */}
         <div className="w-full md:w-1/2 bg-[#f0f0f0] aspect-square md:aspect-auto">
-          {product.primary_image ? (
+          {displayImage ? (
             <img
-              src={product.primary_image}
+              src={displayImage}
               alt={product.name}
               className="w-full h-full object-cover"
             />

@@ -5,18 +5,13 @@ import { getProduct } from "../api/products";
 import { getAccessToken } from "../api/auth";
 import { useShop } from "../context/ShopContext";
 import { ProductDetailSkeleton } from "../components/Skeleton";
+import {
+  COLOR_OPTIONS as colors,
+  defaultColorIndex,
+  imagesForColor,
+} from "../utils/productColors";
 
 const sizes = ["XS", "S", "M", "L", "XL"];
-const colors = [
-  { name: "White", value: "#FFFFFF" },
-  { name: "Black", value: "#000000" },
-];
-
-/** Explicit White-first default; fall back to first available if White is absent. */
-function defaultColorIndex(list) {
-  const white = list.findIndex((c) => c.name.toLowerCase() === "white");
-  return white >= 0 ? white : 0;
-}
 
 function apiDetail(err, fallback) {
   const data = err?.response?.data;
@@ -131,15 +126,12 @@ export default function ProductDetail() {
   const stock = Number(product.stock ?? 0);
   const outOfStock = stock < 1;
   const selectedColorName = colors[selectedColor]?.name || "";
-  // Color-linked gallery: show only images tagged with the active swatch.
-  // No match → fall back to the full set (primary first) so the main image never breaks.
-  const allImages = (product.images || []).filter((i) => i.image);
-  const colorImages = colorEnabled
-    ? allImages.filter(
-        (i) => (i.color || "").trim().toLowerCase() === selectedColorName.toLowerCase()
-      )
-    : allImages;
-  const displayImages = colorEnabled && colorImages.length ? colorImages : allImages;
+  // Color-linked gallery — shared with QuickViewModal via utils/productColors.
+  const displayImages = imagesForColor(
+    product.images || [],
+    colorEnabled,
+    selectedColorName
+  );
   const imageUrls = displayImages.map((i) => i.image).filter(Boolean);
 
   return (

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Mail, Phone, MapPin } from "lucide-react";
 import { sendContactMessage } from "../api/contact";
+import { Skeleton } from "../components/Skeleton";
 
 const MAP_SRC =
   "https://www.google.com/maps?q=Bulevardi%20Epidamn%2047%2C%20Durr%C3%ABs%2C%20Albania&hl=en&z=15&output=embed";
@@ -33,6 +34,7 @@ export default function Contact() {
   const [serverError, setServerError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   function clearFeedback() {
     setServerError("");
@@ -161,7 +163,7 @@ export default function Contact() {
                   aria-label="Write your message"
                   rows={2}
                   maxLength={5000}
-                  className={`${underlineClass(errors.message)} resize-none min-h-[64px]`}
+                  className={`${underlineClass(errors.message)} resize-none min-h-[64px] pb-1`}
                 />
                 {fieldError(errors, "message")}
               </div>
@@ -198,10 +200,13 @@ export default function Contact() {
               src={MAP_SRC}
               title="Marigo location — Bulevardi Epidamn 47, Durrës, Albania"
               className="absolute inset-0 w-full h-full border-0"
-              loading="lazy"
+              onLoad={() => setMapLoaded(true)}
               referrerPolicy="no-referrer-when-downgrade"
               allowFullScreen
 />
+            {!mapLoaded && (
+              <Skeleton className="absolute inset-0" rounded="rounded-none" />
+            )}
           </div>
         </div>
       </section>

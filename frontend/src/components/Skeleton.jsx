@@ -7,7 +7,7 @@ export function Skeleton({ className = "", rounded = "rounded" }) {
   );
 }
 
-export function ProductCardSkeleton() {
+function ProductCardSkeleton() {
   return (
     <div className="block">
       <Skeleton className="aspect-square w-full" />

@@ -41,7 +41,8 @@ export default function Orders() {
                     Order #{o.id}
                   </p>
                   <p className="text-xs font-sans text-gray-500 mt-1 break-words">
-                    {o.items?.length || 0} items
+                    {o.items?.length || 0} item
+                    {(o.items?.length || 0) === 1 ? "" : "s"}
                     {o.items?.some((i) => i.color || i.size) &&
                       ` — ${o.items
                         .map((i) =>
@@ -53,10 +54,7 @@ export default function Orders() {
                   </p>
                 </div>
               <div className="text-right flex-shrink-0">
-                <span className="text-xs font-sans px-2 py-1 rounded-full bg-gray-100 text-gray-700">
-                  {o.status}
-                </span>
-                <p className="text-sm font-sans text-gray-900 mt-1">
+                <p className="text-sm font-sans text-gray-900">
                   ${o.total_amount}
                 </p>
               </div>

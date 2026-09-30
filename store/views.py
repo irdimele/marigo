@@ -1,10 +1,13 @@
 from decimal import Decimal
+from datetime import datetime, timedelta
 
 import os
 
 from django.db import transaction
-from django.db.models import F
+from django.db.models import Count, F, Sum
+from django.db.models.functions import TruncDate, TruncMonth
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import generics, permissions, status, viewsets
@@ -29,7 +32,6 @@ from .models import (
 )
 from .permissions import IsStaffOrReadOnly
 from .serializers import (
-    AddressSerializer,
     CartItemSerializer,
     CartSerializer,
     CategorySerializer,
@@ -110,7 +112,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     )
     permission_classes = [IsStaffOrReadOnly]
     filterset_class = ProductFilter
-    search_fields = ["name", "description", "sku"]
+    search_fields = ["name"]
     ordering_fields = ["price", "created_at", "name", "is_best_seller"]
     ordering = ["-created_at"]
 
@@ -193,8 +195,6 @@ class CartAddView(APIView):
         # Snapshot current price.
         item.unit_price = product.price
         item.quantity = item.quantity + quantity if not created else quantity
-        if product.stock < 1:
-            return Response({"detail": "This product is out of stock."}, status=400)
         if product.stock < item.quantity:
             return Response(
                 {"detail": f"Only {product.stock} left in stock."}, status=400
@@ -233,9 +233,6 @@ class CartItemUpdateDeleteView(APIView):
         item.quantity = quantity
         item.save()
         return Response(CartItemSerializer(item, context={"request": request}).data)
-
-    def put(self, request, pk):
-        return self.patch(request, pk)
 
     def delete(self, request, pk):
         item = self._get_item(request, pk)
@@ -505,7 +502,7 @@ class ContactCreateView(generics.CreateAPIView):
         serializer.save()
 
 
-# ---------- Orders / Addresses ----------
+# ---------- Orders ----------
 
 
 class OrderViewSet(viewsets.ReadOnlyModelViewSet):
@@ -519,17 +516,6 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
         if self.request.user.is_staff:
             return qs.all()
         return qs.filter(user=self.request.user)
-
-
-class AddressViewSet(viewsets.ModelViewSet):
-    serializer_class = AddressSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return Address.objects.filter(user=self.request.user)
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
 
 
 # ---------- Dashboard (staff only, read-only) ----------
@@ -550,6 +536,221 @@ class DashboardOrdersView(generics.ListAPIView):
         )
 
 
+class DashboardOrderDetailView(APIView):
+    """PATCH /api/dashboard/orders/<id>/ — staff-only order actions.
+
+    Currently accepts only `is_done` (bool). Sets/clears done_at.
+    """
+
+    permission_classes = [permissions.IsAdminUser]
+
+    def patch(self, request, pk):
+        if "is_done" not in request.data:
+            return Response(
+                {"detail": "Only 'is_done' may be updated."}, status=status.HTTP_400_BAD_REQUEST
+            )
+        raw = request.data.get("is_done")
+        if isinstance(raw, bool):
+            is_done = raw
+        elif isinstance(raw, str) and raw.lower() in ("true", "false", "1", "0"):
+            is_done = raw.lower() in ("true", "1")
+        else:
+            return Response(
+                {"detail": "is_done must be a boolean."}, status=status.HTTP_400_BAD_REQUEST
+            )
+        order = get_object_or_404(Order, pk=pk)
+        order.is_done = is_done
+        order.done_at = timezone.now() if is_done else None
+        order.save(update_fields=["is_done", "done_at", "updated_at"])
+        return Response(OrderSerializer(order, context={"request": request}).data)
+
+
+class DashboardRevenueView(APIView):
+    """GET /api/dashboard/revenue/?start=YYYY-MM-DD&end=YYYY-MM-DD — staff only.
+
+    All aggregation happens in the database (Sum/Count/TruncDate/TruncMonth);
+    only the finished numbers are sent to the client. Money stays Decimal.
+    """
+
+    permission_classes = [permissions.IsAdminUser]
+
+    @staticmethod
+    def _parse_date(raw, name):
+        try:
+            return datetime.strptime(raw, "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            return None
+
+    def _money(self, value):
+        return str((value or Decimal("0")).quantize(Decimal("0.01")))
+
+    def _range_qs(self, start_dt, end_dt):
+        # Revenue counts every order EXCEPT cancelled ones — payments aren't
+        # processed online yet, so every non-cancelled order represents money
+        # the shop expects to collect.
+        return (
+            Order.objects.filter(created_at__gte=start_dt, created_at__lt=end_dt)
+            .exclude(status="cancelled")
+        )
+
+    def _stats(self, start_dt, end_dt):
+        qs = self._range_qs(start_dt, end_dt)
+        agg = qs.aggregate(revenue=Sum("total_amount"), orders=Count("id"))
+        revenue = agg["revenue"] or Decimal("0")
+        orders = agg["orders"] or 0
+        items = (
+            OrderItem.objects.filter(order__in=qs).aggregate(q=Sum("quantity"))["q"] or 0
+        )
+        average = (
+            (revenue / orders).quantize(Decimal("0.01")) if orders else Decimal("0")
+        )
+        return {
+            "revenue": self._money(revenue),
+            "orders": orders,
+            "average": str(average),
+            "items_sold": items,
+        }
+
+    def get(self, request):
+        start_raw = str(request.query_params.get("start") or "").strip()
+        end_raw = str(request.query_params.get("end") or "").strip()
+        if not start_raw or not end_raw:
+            return Response(
+                {"detail": "Please provide both start and end dates (YYYY-MM-DD)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        start = self._parse_date(start_raw, "start")
+        end = self._parse_date(end_raw, "end")
+        if start is None or end is None:
+            return Response(
+                {"detail": "Dates must be valid and in YYYY-MM-DD format."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if start > end:
+            return Response(
+                {"detail": "Start date cannot be after the end date."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Interpret dates in the project timezone (order at 11:50 PM lands on
+        # the right calendar day).
+        tz = timezone.get_current_timezone()
+        start_dt = timezone.make_aware(datetime.combine(start, datetime.min.time()), tz)
+        end_dt = timezone.make_aware(
+            datetime.combine(end + timedelta(days=1), datetime.min.time()), tz
+        )
+
+        span_days = (end - start).days + 1
+        qs = self._range_qs(start_dt, end_dt)
+
+        # --- revenue over time (zero-filled) ---
+        series = []
+        if span_days > 90:
+            # Long ranges group by month instead of day.
+            rows = (
+                qs.annotate(period=TruncMonth("created_at", tzinfo=tz))
+                .values("period")
+                .annotate(revenue=Sum("total_amount"))
+                .order_by("period")
+            )
+            by_period = {}
+            for r in rows:
+                p = r["period"]
+                key = f"{p.year:04d}-{p.month:02d}"
+                by_period[key] = r["revenue"]
+            # Walk months start..end so gaps get zeros.
+            y, m = start.year, start.month
+            while (y, m) <= (end.year, end.month):
+                key = f"{y:04d}-{m:02d}"
+                series.append(
+                    {"period": key, "revenue": self._money(by_period.get(key))}
+                )
+                m += 1
+                if m > 12:
+                    m, y = 1, y + 1
+        else:
+            rows = (
+                qs.annotate(day=TruncDate("created_at", tzinfo=tz))
+                .values("day")
+                .annotate(revenue=Sum("total_amount"))
+                .order_by("day")
+            )
+            by_day = {r["day"]: r["revenue"] for r in rows}
+            d = start
+            while d <= end:
+                series.append(
+                    {"period": d.isoformat(), "revenue": self._money(by_day.get(d))}
+                )
+                d += timedelta(days=1)
+
+        # --- revenue by category (from order items) ---
+        # line_revenue computed first so F() refs hit model fields, not aliases.
+        cat_rows = (
+            OrderItem.objects.filter(order__in=qs)
+            .annotate(line_revenue=F("unit_price") * F("quantity"))
+            .values("product__category__name")
+            .annotate(revenue=Sum("line_revenue"))
+            .order_by("-revenue")
+        )
+        by_category = [
+            {"category": r["product__category__name"] or "Other", "revenue": self._money(r["revenue"])}
+            for r in cat_rows
+        ]
+
+        # --- top 10 products by revenue ---
+        top_rows = (
+            OrderItem.objects.filter(order__in=qs, product__isnull=False)
+            .annotate(line_revenue=F("unit_price") * F("quantity"))
+            .values("product_id", "product__name")
+            .annotate(qty_sold=Sum("quantity"), revenue=Sum("line_revenue"))
+            .order_by("-revenue", "product__name")[:10]
+        )
+        top_products = [
+            {
+                "product_id": r["product_id"],
+                "name": r["product__name"],
+                "quantity": r["qty_sold"],
+                "revenue": self._money(r["revenue"]),
+            }
+            for r in top_rows
+        ]
+
+        # --- orders in range ---
+        order_rows = qs.order_by("-created_at").values(
+            "id", "created_at", "first_name", "last_name", "email", "total_amount"
+        )
+        orders_in_range = [
+            {
+                "id": r["id"],
+                "created_at": r["created_at"].isoformat(),
+                "first_name": r["first_name"],
+                "last_name": r["last_name"],
+                "email": r["email"],
+                "total_amount": str(r["total_amount"]),
+            }
+            for r in order_rows
+        ]
+
+        # --- previous period of equal length (for % change) ---
+        prev_end_dt = start_dt
+        prev_start_dt = start_dt - timedelta(days=span_days)
+        previous = self._stats(prev_start_dt, prev_end_dt)
+
+        return Response(
+            {
+                "start": start.isoformat(),
+                "end": end.isoformat(),
+                "days": span_days,
+                "current": self._stats(start_dt, end_dt),
+                "previous": previous,
+                "series": series,
+                "by_category": by_category,
+                "top_products": top_products,
+                "orders": orders_in_range,
+            }
+        )
+
+
 class DashboardMessagesView(generics.ListAPIView):
     """All contact-form submissions for the client dashboard. Staff only."""
 
@@ -559,6 +760,51 @@ class DashboardMessagesView(generics.ListAPIView):
 
     def get_queryset(self):
         return ContactMessage.objects.all()
+
+
+class DashboardMessageDetailView(APIView):
+    """DELETE /api/dashboard/messages/<id>/ — permanent, staff only.
+
+    ContactMessage has no inbound FK relations (checked: only admin /
+    serializer / this dashboard reference it), so a row delete breaks nothing.
+    """
+
+    permission_classes = [permissions.IsAdminUser]
+
+    def delete(self, request, pk):
+        message = ContactMessage.objects.filter(pk=pk).first()
+        if message is None:
+            return Response(
+                {"detail": "Message not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        message.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class DashboardMessageBulkDeleteView(APIView):
+    """POST /api/dashboard/messages/bulk-delete/ {"ids": [1,2,3]} — staff only."""
+
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request):
+        ids = request.data.get("ids")
+        if not isinstance(ids, list) or not ids:
+            return Response(
+                {"detail": "ids must be a non-empty list of integers."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if len(ids) > 200:
+            return Response(
+                {"detail": "You can delete at most 200 messages per request."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not all(isinstance(i, int) and not isinstance(i, bool) for i in ids):
+            return Response(
+                {"detail": "ids must be a list of integers."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        deleted, _ = ContactMessage.objects.filter(pk__in=ids).delete()
+        return Response({"deleted": deleted})
 
 
 class DashboardProductViewSet(viewsets.ModelViewSet):

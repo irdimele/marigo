@@ -6,8 +6,8 @@ function normalizeList(data) {
   return data;
 }
 
-export async function getProducts(filters = {}) {
-  const res = await client.get("/products/", { params: filters });
+export async function getProducts(filters = {}, signal) {
+  const res = await client.get("/products/", { params: filters, signal });
   return normalizeList(res.data);
 }
 

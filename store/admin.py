@@ -98,6 +98,8 @@ class OrderAdmin(admin.ModelAdmin):
         "address",
         "total_amount",
         "created_at",
+        "is_done",
+        "done_at",
     )
     search_fields = (
         "user__username",
@@ -111,9 +113,9 @@ class OrderAdmin(admin.ModelAdmin):
         "zip_code",
         "address",
     )
-    list_filter = ("status", "payment_method")
+    list_filter = ("status", "payment_method", "is_done")
     fieldsets = (
-        (None, {"fields": ("user", "status", "payment_method", "total_amount", "customer_note")}),
+        (None, {"fields": ("user", "status", "is_done", "done_at", "payment_method", "total_amount", "customer_note")}),
         (
             "Billing details",
             {
@@ -140,7 +142,7 @@ class OrderAdmin(admin.ModelAdmin):
         ),
         ("Timestamps", {"fields": ("created_at", "updated_at")}),
     )
-    readonly_fields = ("created_at", "updated_at")
+    readonly_fields = ("created_at", "updated_at", "is_done", "done_at")
     inlines = [OrderItemInline]
 
 

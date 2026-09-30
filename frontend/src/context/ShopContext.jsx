@@ -85,7 +85,6 @@ export function ShopProvider({ children }) {
   const value = {
     cartCount,
     wishlistCount: wishlistIds.size,
-    wishlistIds,
     isWished: (id) => wishlistIds.has(id),
     addToCart,
     changeQty,

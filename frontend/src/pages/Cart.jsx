@@ -136,7 +136,7 @@ export default function Cart() {
               Shopping Cart
             </h2>
             <p className="text-sm font-sans font-semibold text-gray-900">
-              {itemCount} Items
+              {itemCount} Item{itemCount === 1 ? "" : "s"}
             </p>
           </div>
 
